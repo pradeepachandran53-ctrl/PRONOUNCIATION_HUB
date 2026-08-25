@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pronunciation Hub</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f2937">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+body{font-family:Arial;background:#111827;color:white;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:20px}
+.box{background:#1f2937;padding:30px;border-radius:16px;width:400px;text-align:center;border:1px solid #374151;position:relative}
+.logo{font-size:28px;font-weight:bold}.logo span{color:#60a5fa}
+input,select{width:90%;padding:12px;border-radius:8px;border:none;font-size:16px;margin:8px 0}
+button{padding:12px 15px;margin:5px;border:none;border-radius:8px;background:#2563eb;color:white;cursor:pointer;font-weight:bold}
+.mic-btn{background:#10b981}.cam-btn{background:#8b5cf6}.gallery-btn{background:#ec4899}
+.result{margin-top:15px;background:#111827;padding:15px;border-radius:10px;text-align:left;line-height:1.6;font-size:14px}
+.badge{background:#374151;padding:6px 12px;border-radius:20px;font-size:13px;margin-top:5px;display:inline-block;color:#9ca3af}
+.badge.active{background:#2563eb;color:white}
+.suggest{background:#111827;border:1px solid #374151;border-radius:8px;max-height:150px;overflow-y:auto;position:absolute;width:85%;left:50%;transform:translateX(-50%);z-index:10;text-align:left;display:none}
+.s-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #1f2937}.s-item:hover{background:#2563eb}
+/* SEARCHABLE LANGUAGE DROPDOWN */
+.lang-wrapper{position:relative;width:90%;margin:12px auto}
+.lang-search{width:100%;padding:12px;border-radius:8px;border:none;font-size:15px;background:white;color:black;box-sizing:border-box}
+.lang-options{position:absolute;top:100%;left:0;right:0;background:#111827;border:1px solid #374151;border-radius:8px;max-height:200px;overflow-y:auto;z-index:20;display:none;text-align:left}
+.lang-opt{padding:10px 12px;cursor:pointer;border-bottom:1px solid #1f2937;font-size:14px}.lang-opt:hover{background:#2563eb}
+.lang-selected{background:#2563eb;color:white;padding:8px 12px;border-radius:20px;font-size:12px;margin-top:8px;display:inline-block}
+.history{margin-top:15px;background:#111827;padding:12px;border-radius:10px;text-align:left;max-height:150px;overflow-y:auto}
+.h-item{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid #1f2937;cursor:pointer;font-size:14px}
+.offline{position:fixed;top:10px;right:10px;background:#10b981;padding:6px 12px;border-radius:20px;font-size:12px;z-index:99}
+.auth-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:13px}
+.auth-btn{background:#374151;padding:6px 12px;font-size:12px}
+.auth-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:none;justify-content:center;align-items:center;z-index:100}
+.auth-box{background:#1f2937;padding:25px;border-radius:16px;width:320px;border:1px solid #374151;text-align:center}
+.cam-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);display:none;flex-direction:column;justify-content:center;align-items:center;z-index:200}
+#cameraVideo{width:90%;max-width:400px;border-radius:12px;border:2px solid #374151}
+.choice-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(17,24,39,0.98);display:flex;justify-content:center;align-items:center;z-index:500}
+.choice-box{background:#1f2937;padding:30px;border-radius:20px;width:340px;text-align:center;border:1px solid #374151}
+.choice-btns{display:flex;flex-direction:column;gap:12px}
+.btn-download{background:#f59e0b;color:black;font-size:16px;padding:14px}
+.btn-browser{background:#2563eb;font-size:16px;padding:14px}
+.remember{margin-top:15px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:#9ca3af}
+.remember input{width:auto;margin:0}
+</style>
+</head>
+<body>
+<div class="offline" id="offlineStatus">🌐 Online</div>
+<div class="choice-modal" id="choiceModal">
+  <div class="choice-box">
+    <div style="font-size:50px">🎙️</div>
+    <h2>Pronunciation <span style="color:#60a5fa">Hub</span></h2>
+    <p>How do you want to use it?</p>
+    <div class="choice-btns">
+      <button class="btn-download" id="choiceInstallBtn" onclick="handleChoiceDownload()">📲 Download App</button>
+      <button class="btn-browser" onclick="handleChoiceBrowser()">🌐 Use in Browser</button>
+    </div>
+    <label class="remember"><input type="checkbox" id="rememberChoice" checked> Remember my choice</label>
+  </div>
+</div>
+<div class="box">
+<div class="auth-bar"><span id="userInfo" style="color:#9ca3af">Not logged in</span><div><button class="auth-btn" id="loginBtn" onclick="showAuth('login')">Login</button><button class="auth-btn" id="signupBtn" onclick="showAuth('signup')" style="background:#2563eb">Sign Up</button><button class="auth-btn" id="logoutBtn" onclick="logout()" style="display:none;background:#ef4444">Logout</button></div></div>
+<div class="logo">Pronunciation <span>Hub</span> <span style="font-size:10px;color:#10b981" id="modeBadge">BROWSER</span></div>
+<input type="text" id="wordInput" placeholder="Type word here" oninput="liveDetect()" autocomplete="off">
+<div id="suggestBox" class="suggest"></div>
+<div id="detectBadge" class="badge">Waiting...</div>
+
+<!-- NEW SEARCHABLE LANGUAGE SELECTOR -->
+<div class="lang-wrapper">
+<input type="text" id="langSearch" class="lang-search" placeholder="🔍 Search language... e.g Tamil" onfocus="showLangOptions()" oninput="filterLang()" autocomplete="off">
+<div id="langOptions" class="lang-options"></div>
+<div id="langSelected" class="lang-selected">Meaning in Tamil</div>
+</div>
+
+<div><button onclick="pronounceWord()">Pronounce 🔊</button><button class="mic-btn" onclick="testMic()">Test My Voice</button></div>
+<div><button class="cam-btn" onclick="startLiveCamera()">Camera 📷 Live</button><button class="gallery-btn" onclick="openGallery()">Gallery 🖼️</button></div>
+<div style="margin-top:10px"><button style="background:#374151;font-size:11px;padding:6px 10px" onclick="resetChoice()">⚙️ Change App / Browser Preference</button></div>
+<input type="file" id="galleryInput" accept="image/*" style="display:none" onchange="handleGalleryFile(this)">
+<canvas id="captureCanvas" style="display:none"></canvas>
+<div id="score" style="margin-top:12px;font-weight:bold"></div>
+<div class="result" id="result">Meaning will appear here</div>
+<div class="history"><div style="display:flex;justify-content:space-between"><b style="font-size:14px">🕒 History</b><button style="background:#ef4444;padding:4px 8px;font-size:11px" onclick="clearHistory()">Clear</button></div><div id="historyList" style="margin-top:8px;color:#9ca3af;font-size:13px"></div></div>
+</div>
+<div class="auth-modal" id="authModal"><div class="auth-box"><h3 id="authTitle">Login</h3><input type="text" id="authName" placeholder="Full Name" style="display:none"><input type="email" id="authEmail" placeholder="Email"><input type="password" id="authPass" placeholder="Password"><div><button id="authSubmit" style="width:90%;margin-top:10px" onclick="handleAuth()">Login</button><button style="background:#6b7280;margin-top:8px;width:90%" onclick="closeAuth()">Cancel</button></div><p style="font-size:12px;color:#9ca3af;margin-top:10px" id="switchAuth"></p></div></div>
+<div class="cam-modal" id="camModal"><video id="cameraVideo" autoplay playsinline></video><div style="margin-top:15px;display:flex;gap:10px"><button style="background:#ef4444" onclick="closeLiveCamera()">✕ Close</button><button style="background:#10b981;padding:15px 25px;font-size:18px;border-radius:50px" onclick="capturePhoto()">📸 Capture</button><button style="background:#8b5cf6" onclick="switchCamera()">🔄 Flip</button></div><div id="camStatus" style="margin-top:10px;color:#9ca3af;font-size:13px">Point at ONE word only</div></div>
+<script>
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js');}
+function updateOnline(){let el=document.getElementById("offlineStatus");el.textContent=navigator.onLine?"🌐 Online":"📴 Offline";el.style.background=navigator.onLine?"#10b981":"#f59e0b";}
+window.addEventListener('online',updateOnline);window.addEventListener('offline',updateOnline);updateOnline();
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.getElementById("choiceInstallBtn").textContent="📲 Download App";});
+
+// ALL LANGUAGES LIST WITH SEARCH
+const allLanguages = [
+{code:"en", name:"English"}, {code:"ta", name:"Tamil"}, {code:"hi", name:"Hindi"}, {code:"ko", name:"Korean"},
+{code:"te", name:"Telugu"}, {code:"ml", name:"Malayalam"}, {code:"kn", name:"Kannada"}, {code:"bn", name:"Bengali"},
+{code:"gu", name:"Gujarati"}, {code:"mr", name:"Marathi"}, {code:"pa", name:"Punjabi"}, {code:"ur", name:"Urdu"},
+{code:"es", name:"Spanish"}, {code:"fr", name:"French"}, {code:"de", name:"German"}, {code:"it", name:"Italian"},
+{code:"ja", name:"Japanese"}, {code:"zh", name:"Chinese"}, {code:"ar", name:"Arabic"}, {code:"ru", name:"Russian"},
+{code:"pt", name:"Portuguese"}, {code:"tr", name:"Turkish"}, {code:"nl", name:"Dutch"}, {code:"th", name:"Thai"},
+{code:"vi", name:"Vietnamese"}, {code:"id", name:"Indonesian"}
+];
+let targetLang = "ta";
+
+function renderLangOptions(list){
+  const box=document.getElementById("langOptions");
+  box.innerHTML=list.map(l=>`<div class="lang-opt" onclick="selectLang('${l.code}','${l.name}')">${l.name} (${l.code})</div>`).join('');
+}
+function showLangOptions(){ renderLangOptions(allLanguages); document.getElementById("langOptions").style.display="block"; }
+function filterLang(){
+  const q=document.getElementById("langSearch").value.toLowerCase();
+  const filtered=allLanguages.filter(l=>l.name.toLowerCase().includes(q) || l.code.includes(q));
+  renderLangOptions(filtered);
+  document.getElementById("langOptions").style.display="block";
+}
+function selectLang(code,name){
+  targetLang=code;
+  localStorage.setItem("ph_targetLang", code);
+  document.getElementById("langSelected").textContent="Meaning in "+name;
+  document.getElementById("langSearch").value="";
+  document.getElementById("langOptions").style.display="none";
+  const word=document.getElementById("wordInput").value.trim();
+  if(word){pronounceWord();}
+}
+document.addEventListener("click",(e)=>{
+  if(!e.target.closest(".lang-wrapper")){document.getElementById("langOptions").style.display="none";}
+});
+
+window.addEventListener('load',()=>{
+  const savedLang = localStorage.getItem("ph_targetLang");
+  if(savedLang){targetLang=savedLang; const found=allLanguages.find(l=>l.code===savedLang); if(found) document.getElementById("langSelected").textContent="Meaning in "+found.name;}
+  else{localStorage.setItem("ph_targetLang","ta");}
+  const savedChoice = localStorage.getItem("ph_choice");
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  if(isStandalone){document.getElementById("choiceModal").style.display="none";document.getElementById("modeBadge").textContent="APP";}
+  else if(savedChoice){document.getElementById("choiceModal").style.display="none";}
+  else{document.getElementById("choiceModal").style.display="flex";}
+  renderLangOptions(allLanguages);
+});
+function handleChoiceBrowser(){const remember=document.getElementById("rememberChoice").checked;if(remember){localStorage.setItem("ph_choice","browser");}document.getElementById("choiceModal").style.display="none";}
+async function handleChoiceDownload(){const remember=document.getElementById("rememberChoice").checked;if(deferredPrompt){deferredPrompt.prompt();const choice=await deferredPrompt.userChoice;if(choice.outcome==="accepted"){if(remember) localStorage.setItem("ph_choice","installed");document.getElementById("choiceModal").style.display="none";}deferredPrompt=null;}else{alert("To install:\nAndroid: Menu > Install app\niPhone: Share > Add to Home Screen");if(remember) localStorage.setItem("ph_choice","browser");document.getElementById("choiceModal").style.display="none";}}
+function resetChoice(){localStorage.removeItem("ph_choice");document.getElementById("choiceModal").style.display="flex";}
+let originalWord="";let voices=[];let authMode="login";let currentStream=null;let facingMode="environment";let selectedIndex=-1;
+function loadVoices(){voices=speechSynthesis.getVoices();}
+speechSynthesis.onvoiceschanged=loadVoices;loadVoices();setTimeout(loadVoices,1000);
+function detectLang(text){
+if(/[\u0B80-\u0BFF]/.test(text))return{code:'ta',langCode:'ta-IN',name:'Tamil'};
+if(/[\u0900-\u097F]/.test(text))return{code:'hi',langCode:'hi-IN',name:'Hindi'};
+if(/[\uAC00-\uD7AF]/.test(text))return{code:'ko',langCode:'ko-KR',name:'Korean'};
+return{code:'en',langCode:'en-US',name:'English'};
+}
+async function liveDetect(){
+const text=document.getElementById("wordInput").value.trim();const badge=document.getElementById("detectBadge");const box=document.getElementById("suggestBox");
+if(!text){badge.textContent="Waiting...";badge.className="badge";box.style.display="none";selectedIndex=-1;return;}
+const d=detectLang(text);badge.textContent="Detected: "+d.name;badge.className="badge active";originalWord=text;
+if(navigator.onLine && d.code==='en'&&text.length>=2){
+try{let r=await fetch("https://api.datamuse.com/sug?s="+text);let data=await r.json();
+if(data.length>0){box.innerHTML=data.slice(0,5).map(i=>`<div class="s-item" onclick="selectS('${i.word}')">${i.word}</div>`).join('');box.style.display="block";selectedIndex=-1;}}catch(e){}
+}else{box.style.display="none";selectedIndex=-1;}
+}
+function selectS(w){document.getElementById("wordInput").value=w;document.getElementById("suggestBox").style.display="none";selectedIndex=-1;liveDetect();pronounceWord();}
+async function translateGoogle(text, from, to){
+  try{const url=`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${from}&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;const res=await fetch(url);const data=await res.json();return data[0][0][0];}catch(e){return null;}
+}
+async function pronounceWord(){
+const word=document.getElementById("wordInput").value.trim();if(!word)return alert("Type a word!");
+document.getElementById("suggestBox").style.display="none";selectedIndex=-1;originalWord=word;const d=detectLang(word);
+speechSynthesis.cancel();
+if((d.code==='ta'||d.code==='hi')&&navigator.onLine){
+ const audio=new Audio();audio.src="https://translate.google.com/translate_tts?ie=UTF-8&tl="+d.code+"&client=tw-ob&q="+encodeURIComponent(word);
+ audio.play().catch(()=>speakSystem(word,d));
+}else{speakSystem(word,d);}
+const res=document.getElementById("result");
+if(!navigator.onLine){res.innerHTML=`<b>Language:</b> ${d.name}<br><b>Word:</b> ${word}<br><br><b>Meaning:</b> <i style="color:#f59e0b">Connect internet for meaning</i>`;saveHistory(word,d.name);return;}
+if(d.code===targetLang){res.innerHTML=`<b>Language:</b> ${d.name}<br><b>Word:</b> ${word}<br><br><b>Meaning:</b> Same language`;saveHistory(word,d.name);return;}
+res.innerHTML=`<b>Language:</b> ${d.name}<br><b>Word:</b> ${word}<br><br><b>Meaning:</b> Translating...`;
+const translated=await translateGoogle(word,d.code,targetLang);
+if(translated){
+  const langName=allLanguages.find(l=>l.code===targetLang)?.name || targetLang;
+  res.innerHTML=`<b>Language:</b> ${d.name}<br><b>Word:</b> ${word}<br><br><b>Meaning in ${langName}:</b> <span style="color:#60a5fa;font-size:18px">${translated}</span>`;
+  saveHistory(word,d.name);
+}
+else{res.innerHTML=`<b>Language:</b> ${d.name}<br><b>Word:</b> ${word}<br><br><b>Meaning:</b> <span style="color:#ef4444">Could not translate</span>`;}
+}
+function speakSystem(word,d){const u=new SpeechSynthesisUtterance(word);u.lang=d.langCode;u.rate=0.9;let v=voices.find(x=>x.lang===d.langCode)||voices.find(x=>x.lang.toLowerCase().includes(d.code));if(v)u.voice=v;speechSynthesis.speak(u);}
+function testMic(){if(!originalWord)return alert("Type word first");const s=document.getElementById("score");const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return alert("Use Chrome/Edge");const d=detectLang(originalWord);const rec=new SR();rec.lang=d.langCode;s.textContent="Listening...";rec.onresult=e=>{s.textContent="You said: "+e.results[0][0].transcript;};rec.start();}
+async function startLiveCamera(){document.getElementById("camModal").style.display="flex";try{currentStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facingMode}});document.getElementById("cameraVideo").srcObject=currentStream;}catch(e){alert("Camera needs HTTPS");closeLiveCamera();}}
+function closeLiveCamera(){document.getElementById("camModal").style.display="none";if(currentStream){currentStream.getTracks().forEach(t=>t.stop());currentStream=null;}}
+function switchCamera(){facingMode=facingMode==="environment"?"user":"environment";if(currentStream){currentStream.getTracks().forEach(t=>t.stop());}startLiveCamera();}
+async function capturePhoto(){
+  const video=document.getElementById("cameraVideo");const canvas=document.getElementById("captureCanvas");const status=document.getElementById("camStatus");
+  canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);
+  status.textContent="🔍 Reading...";
+  try{
+    const result=await Tesseract.recognize(canvas.toDataURL('image/jpeg'),'eng+tam+hin+kor');
+    let text=result.data.text.trim().split('\n')[0].trim().split(' ')[0].replace(/[^a-zA-Z0-9\u0B80-\u0BFF\u0900-\u097F\uAC00-\uD7AF]/g,'');
+    if(text){document.getElementById("wordInput").value=text;status.textContent="✅ Found: "+text;closeLiveCamera();liveDetect();pronounceWord();}
+    else{status.textContent="❌ No clear word - bring closer";}
+  }catch(e){status.textContent="❌ Need internet first time for OCR";}
+}
+function openGallery(){document.getElementById("galleryInput").click();}
+async function handleGalleryFile(input){
+  const file=input.files[0];if(!file)return;
+  document.getElementById("result").textContent="🔍 Reading gallery...";
+  try{const r=await Tesseract.recognize(file,'eng+tam+hin+kor');let t=r.data.text.trim().split('\n')[0].split(' ')[0].replace(/[^a-zA-Z0-9\u0B80-\u0BFF\u0900-\u097F\uAC00-\uD7AF]/g,'');if(t){document.getElementById("wordInput").value=t;liveDetect();pronounceWord();}}catch(e){alert("OCR needs internet first time");}
+  input.value="";
+}
+function getCurrentUser(){return JSON.parse(localStorage.getItem("ph_current")||"null");}
+function getHistoryKey(){const c=getCurrentUser();return c?"ph_history_"+c.email:"ph_history_guest";}
+function showAuth(m){authMode=m;document.getElementById("authModal").style.display="flex";document.getElementById("authTitle").textContent=m==='login'?'Login':'Sign Up';document.getElementById("authSubmit").textContent=m==='login'?'Login':'Sign Up';document.getElementById("authName").style.display=m==='signup'?'block':'none';document.getElementById("switchAuth").innerHTML=m==='login'?'No account? <span style="color:#60a5fa;cursor:pointer" onclick="showAuth(\'signup\')">Sign Up</span>':'Have account? <span style="color:#60a5fa;cursor:pointer" onclick="showAuth(\'login\')">Login</span>';}
+function closeAuth(){document.getElementById("authModal").style.display="none";}
+function handleAuth(){
+ const name=document.getElementById("authName").value.trim();const email=document.getElementById("authEmail").value.trim().toLowerCase();const pass=document.getElementById("authPass").value;
+ if(!email||!pass)return alert("Fill email & password");let users=JSON.parse(localStorage.getItem("ph_users")||"[]");
+ if(authMode==='signup'){if(!name)return alert("Enter name");if(users.find(u=>u.email===email))return alert("Exists");users.push({name,email,pass});localStorage.setItem("ph_users",JSON.stringify(users));localStorage.setItem("ph_current",JSON.stringify({name,email}));closeAuth();updateAuthUI();}
+ else{const u=users.find(u=>u.email===email&&u.pass===pass);if(!u)return alert("Wrong pass");localStorage.setItem("ph_current",JSON.stringify({name:u.name,email:u.email}));closeAuth();updateAuthUI();}
+ document.getElementById("authEmail").value="";document.getElementById("authPass").value="";document.getElementById("authName").value="";
+}
+function logout(){localStorage.removeItem("ph_current");updateAuthUI();}
+function updateAuthUI(){const c=getCurrentUser();const info=document.getElementById("userInfo");if(c){info.textContent="Hi, "+c.name;loginBtn.style.display="none";signupBtn.style.display="none";logoutBtn.style.display="inline-block";}else{info.textContent="Not logged in";loginBtn.style.display="inline-block";signupBtn.style.display="inline-block";logoutBtn.style.display="none";}renderHistory();}
+function saveHistory(w,l){let h=JSON.parse(localStorage.getItem(getHistoryKey())||"[]");h=h.filter(x=>x.word!==w);h.unshift({word:w,lang:l,time:new Date().toLocaleTimeString()});if(h.length>20)h=h.slice(0,20);localStorage.setItem(getHistoryKey(),JSON.stringify(h));renderHistory();}
+function renderHistory(){let h=JSON.parse(localStorage.getItem(getHistoryKey())||"[]");document.getElementById("historyList").innerHTML=h.length?h.map(x=>`<div class="h-item" onclick="document.getElementById('wordInput').value='${x.word}';liveDetect();pronounceWord()"><span>${x.word} <span style="color:#60a5fa;font-size:11px">(${x.lang})</span></span><span style="font-size:11px;color:#6b7280">${x.time}</span></div>`).join(''):"No history";}
+function clearHistory(){localStorage.removeItem(getHistoryKey());renderHistory();}
+updateAuthUI();
+document.getElementById("wordInput").addEventListener("keydown",e=>{
+  const box=document.getElementById("suggestBox");
+  const items=box.querySelectorAll(".s-item");
+  if(e.key==="ArrowDown"){
+    e.preventDefault(); selectedIndex=Math.min(selectedIndex+1, items.length-1);
+    items.forEach((el,i)=> el.style.background=i===selectedIndex? "#2563eb":"");
+  }else if(e.key==="ArrowUp"){
+    e.preventDefault(); selectedIndex=Math.max(selectedIndex-1, -1);
+    items.forEach((el,i)=> el.style.background=i===selectedIndex? "#2563eb":"");
+  }else if(e.key==="Enter"){
+    e.preventDefault();
+    if(selectedIndex>=0 && items[selectedIndex]){
+      const w=items[selectedIndex].textContent;
+      document.getElementById("wordInput").value=w;
+      box.style.display="none"; selectedIndex=-1; liveDetect(); pronounceWord();
+    }else{ box.style.display="none"; selectedIndex=-1; pronounceWord(); }
+  }else if(e.key==="Escape"){ box.style.display="none"; selectedIndex=-1; }
+});
+document.addEventListener("click", (e)=>{
+  if(!e.target.closest("#wordInput") &&!e.target.closest("#suggestBox")){
+    document.getElementById("suggestBox").style.display="none"; selectedIndex=-1;
+  }
+});
+</script>
+</body>
+</html>
